@@ -1,0 +1,10 @@
+Version of workspace file format:
+               1
+Time of storage:
+               "Sun Apr 25 17:15:04 EDT 2010"
+Name of the workspace:
+               "wlpp"
+File paths of contained packages:
+               ["wlpp.cabal"]
+Maybe file path of an active package:
+               Just "wlpp.cabal"
