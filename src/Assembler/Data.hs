@@ -1,7 +1,9 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- | Holds all the data types used in the assembler.
 module Assembler.Data where
 
-import Control.Monad.State(State, runState, put, get)
-import Data.Bits((.|.), shiftL)
+import Data.Bits(Bits, (.&.), shiftL, shiftR)
+import Data.Char(chr)
 import qualified Data.Map as M
 import Data.Word(Word8, Word16, Word32)
 
@@ -98,8 +100,16 @@ data Generation = Generation {
                                                         --   assembled).
                   }
 
+-- | Type used for every assembled instruction.
+newtype MipsWord = MipsWord Word32
+    deriving (Bits, Bounded, Enum, Eq, Integral, Num, Ord, Real)
 
-type MipsWord = Word32      -- ^ Type used for every assembled instruction.
+instance Show MipsWord where
+    show = map chr . splitBytes
+      where splitBytes w    = [toByte 24 w, toByte 16 w, toByte 8 w, toByte 0 w]
+            toByte n w      = fromIntegral $ (w .&. 0xff `shiftL` n) `shiftR` n :: Int
+    showList = showString . concat . map show
+
 type Opcode = Word8         -- ^ Specifies the top 6 bits of an instruction (the /opcode/ field
                             --   of a MIPS instruction.
 type Funct = Word8          -- ^ Specifies the lower 6 bits of an instruction (the /funct/ field

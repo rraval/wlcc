@@ -1,4 +1,4 @@
-module Assembler.Parser where
+module Assembler.Parser(parser) where
 
 import Assembler.Data(Generation(..), Operation(..), MipsWord, Offset, Register)
 import Control.Monad(when)
@@ -11,6 +11,7 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as P
 
 type AsmParser a = CharParser Generation a
+
 parser :: AsmParser [Operation]
 parser = do
     whiteSpace
@@ -42,6 +43,7 @@ instruction :: AsmParser Operation
 instruction =
     do
         op <- operation
+        updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
         case op of
             "add"   -> register3 >>= \(d, s, t) -> return $ Add d s t
             "beq"   -> offsetOrLabel (Beq, BeqL)
