@@ -3,8 +3,8 @@ Version of workspace file format:
 Time of storage:
                "Sun Apr 25 17:15:04 EDT 2010"
 Name of the workspace:
-               "wlpp"
+               "wlcc"
 File paths of contained packages:
-               ["wlpp.cabal"]
+               ["wlcc.cabal"]
 Maybe file path of an active package:
-               Just "wlpp.cabal"
+               Just "wlcc.cabal"

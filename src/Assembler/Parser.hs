@@ -3,12 +3,10 @@ module Assembler.Parser(parser) where
 import Assembler.Data(Generation(..), Operation(..), MipsWord, Offset, Register)
 import Control.Monad(when)
 import Data.Bits(complement)
-import Data.Char(digitToInt)
+import Data.Char(digitToInt, isSpace)
 import Data.List(foldl')
 import qualified Data.Map as M
 import Text.ParserCombinators.Parsec hiding (label)
-import Text.ParserCombinators.Parsec.Language
-import qualified Text.ParserCombinators.Parsec.Token as P
 
 type AsmParser a = CharParser Generation a
 
@@ -23,7 +21,7 @@ line :: AsmParser Operation
 line = do
     many label
     op <- instruction
-    eol
+    (eol <?> "End of line")
     return op
   where eol = newline <|> (char '\r' >> char '\n')
 
@@ -36,12 +34,12 @@ label =
             Just x -> fail $ "Duplicate Label: '" ++ id ++ "'"
             Nothing -> setState $ gen { labelTable = M.insert id (wordOffset gen) (labelTable gen) }
         char ':'
-        return id)
-    <?> "Label"
+        return id
+    ) <?> "Label"
 
 instruction :: AsmParser Operation
 instruction =
-    do
+    lexeme (do
         op <- operation
         updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
         case op of
@@ -63,7 +61,7 @@ instruction =
             "sub"   -> register3 >>= \(d, s, t) -> return $ Sub d s t
             "sw"    -> loadOrStore Sw
             ".word" -> number >>= \n -> return $ Word n
-    <?> "Instruction"
+    ) <?> "Instruction"
   where register =
             do
                 char '$'
@@ -123,22 +121,28 @@ number =
                     then fail "Number too large"
                     else return (fromIntegral n :: MipsWord)
 
+comment :: AsmParser [Char]
+comment = do
+    char ';'
+    many $ satisfy (/= '\n')
+
 toBase :: Integer -> String -> Integer
 toBase base = foldl' (\acc -> \x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0
 
-comma = P.comma lexer
-identifier = P.identifier lexer
-lexeme = P.lexeme lexer
-natural = P.natural lexer
-parens = P.parens lexer
-whiteSpace = P.whiteSpace lexer
-
-lexer :: P.TokenParser Generation
-lexer = P.makeTokenParser(asmDef)
-
-asmDef = emptyDef {
-    commentLine = ";",
-    identStart = letter,
-    identLetter = letter,
-    caseSensitive = False
-}
+comma = lexeme $ char ','
+identifier = many1 letter
+lexeme p = do
+    ret <- p
+    whiteSpaceLine
+    return ret
+parens p = do
+    lexeme $ char '('
+    ret <- p
+    lexeme $ char ')'
+    return ret
+whiteSpaceLine = do
+    many $ satisfy $ \s -> isSpace s && s /= '\n'
+    option "" comment
+whiteSpace = many $ do
+    many space
+    option "" comment

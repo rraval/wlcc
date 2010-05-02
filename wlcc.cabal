@@ -1,4 +1,4 @@
-name: wlpp
+name: wlcc
 version: 0.0.1
 cabal-version: -any
 build-type: Simple
@@ -11,14 +11,15 @@ stability:
 homepage:
 package-url:
 bug-reports:
-synopsis: WLPP package
+synopsis: WLCC package
 description: .
 category:
 author:
 tested-with:
 data-files:
 data-dir: ""
-extra-source-files: src/Assembler.hs
+extra-source-files: src/Assembler/Data.hs src/Assembler/Parser.hs
+                    src/Assembler/Translator.hs
 extra-tmp-files:
  
 executable: wlpp

@@ -1,3 +1,4 @@
+-- | Implements translation from 'Operation' to 'MipsWord' (i.e. binary mips representation)
 module Assembler.Translator(translate) where
 
 import Assembler.Data
