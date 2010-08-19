@@ -87,8 +87,9 @@ instruction =
             comma
             do
                     label <- try identifier
-                    -- label constructor is second
-                    return $ labelConstructor s t label
+                    gen <- getState
+                    let currentpos = wordOffset gen
+                    return $ labelConstructor s t label currentpos
                 <|> do
                     i <- number
                     checkOffset i
