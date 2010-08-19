@@ -12,18 +12,18 @@ type AsmParser a = CharParser Generation a
 
 parser :: AsmParser [Operation]
 parser = do
-    whiteSpace
-    ops <- many line
-    (eof <?> "End of file")
-    return ops
+  whiteSpace
+  ops <- many line
+  (eof <?> "End of file")
+  return ops
 
 line :: AsmParser Operation
 line = do
-    many label
-    op <- instruction
-    (eol <?> "End of line")
-    return op
-  where eol = newline <|> (char '\r' >> char '\n')
+  many label
+  op <- instruction
+  (eol <?> "End of line")
+  return op
+      where eol = newline <|> (char '\r' >> char '\n')
 
 label :: AsmParser String
 label =
@@ -111,7 +111,7 @@ number =
     lexeme (do
             char '-'
             n <- many1 digit >>= check . toBase 10
-            check $ (fromIntegral $ complement n + 1:: Integer)
+            check $ (fromIntegral $ complement n + 1 :: Integer)
         <|> do
             try $ string "0x"
             many1 hexDigit >>= check . toBase 16
@@ -127,7 +127,7 @@ comment = do
     many $ satisfy (/= '\n')
 
 toBase :: Integer -> String -> Integer
-toBase base = foldl' (\acc -> \x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0
+toBase base = foldl' (\acc x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0
 
 comma = lexeme $ char ','
 identifier = many1 letter
