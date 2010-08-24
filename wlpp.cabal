@@ -4,7 +4,7 @@ Synopsis:            WLPP to MIPS compiler
 License:             GPL
 Author:              Ronuk Raval
 Maintainer:          Ronuk Raval <ronuk.raval@gmail.com>
-Build-Depends:       base,containers,parsec
+Build-Depends:       base>=4,containers,parsec
 Build-Type:          Simple
 
 Executable:          wlpp

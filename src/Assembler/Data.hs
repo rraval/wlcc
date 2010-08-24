@@ -113,7 +113,7 @@ newtype MipsWord = MipsWord Word32
 instance Show MipsWord where
     show = map chr . splitBytes
       where splitBytes w    = [toByte 24 w, toByte 16 w, toByte 8 w, toByte 0 w]
-            toByte n w      = fromIntegral $ (w .&. 0xff `shiftL` n) `shiftR` n :: Int
+            toByte n w      = fromIntegral $ (w .&. (0xff `shiftL` n)) `shiftR` n :: Int
     showList = showString . concat . map show
 
 type Opcode = Word8         -- ^ Specifies the top 6 bits of an instruction (the /opcode/ field

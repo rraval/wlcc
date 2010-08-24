@@ -1,14 +1,16 @@
 module Main(main) where
 
 import Data.List(foldl')
+import Data.Map(empty)
 import System.Console.GetOpt
 import qualified System.IO as IO
 import System.Environment(getArgs)
 import System.Exit(exitFailure, exitSuccess)
+import Text.ParserCombinators.Parsec(runParser)
 
-import Assembler.Data
-import Assembler.Parser
-import Assembler.Translator
+import Assembler.Data(Generation(..))
+import Assembler.Parser(parser)
+import Assembler.Translator(translate)
 
 readBinaryFile :: IO.FilePath -> IO String
 readBinaryFile file = do
@@ -23,6 +25,7 @@ writeBinaryFile file contents = do
   IO.hClose handle
 
 data Flags = Flags { input :: IO String
+                   , inputFile :: String
                    , output :: String -> IO ()
                    , version :: IO ()
                    }
@@ -43,15 +46,22 @@ parseOptions argv =
   case getOpt (ReturnInOrder input) options argv of
     (o, n, []) -> let apply a f = f a;
                       initial = Flags { input = getContents
+                                      , inputFile = "stdin"
                                       , output = putStr
                                       , version = return () }
                   in return $ (foldl' apply initial o, n)
-    (_, _, errs) -> ioError (userError (concat errs ++ usageInfo header options))
-  where input i f = f { input = readBinaryFile i }
+    (_, _, errs) -> error $ concat errs ++ usageInfo header options
+  where input i f = f { input = readBinaryFile i, inputFile = i }
         header =  "Usage: wlpp [OPTION...] INPUT"
 
 main :: IO ()
 main = do
-  (opts, extra) <- getArgs >>= parseOptions
+  IO.hSetBinaryMode IO.stdin True
+  IO.hSetBinaryMode IO.stdout True
+  (opts, _) <- getArgs >>= parseOptions
   version opts
-  input opts >>= output opts
+  inp <- input opts
+  case runParser parser (Generation empty 0) (inputFile opts) inp of
+    Right (gen, ops) -> (output opts) $ show $ map (translate gen) ops
+    Left err -> error $ show err
+  exitSuccess

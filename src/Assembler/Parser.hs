@@ -10,39 +10,42 @@ import Text.ParserCombinators.Parsec hiding (label)
 
 type AsmParser a = CharParser Generation a
 
-parser :: AsmParser [Operation]
+parser :: AsmParser (Generation, [Operation])
 parser = do
   whiteSpace
-  ops <- many line
+  many $ try label
+  ops <- many1 line
+  gen <- getState
   (eof <?> "End of file")
-  return ops
+  return (gen, ops)
 
 line :: AsmParser Operation
 line = do
-  many label
+  many $ try label
   op <- instruction
+  whiteSpaceLine
   (eol <?> "End of line")
+  whiteSpace
   return op
       where eol = newline <|> (char '\r' >> char '\n')
 
 label :: AsmParser String
-label =
-    lexeme (do
-        id <- many1 letter
-        gen <- getState
-        case M.lookup id $ labelTable gen of
-            Just x -> fail $ "Duplicate Label: '" ++ id ++ "'"
+label = lexeme label' <?> "Label"
+  where label' = do
+          id <- many1 letter
+          gen <- getState
+          case M.lookup id $ labelTable gen of
+            Just x -> error $ "Duplicate Label: '" ++ id ++ "'"
             Nothing -> setState $ gen { labelTable = M.insert id (wordOffset gen) (labelTable gen) }
-        char ':'
-        return id
-    ) <?> "Label"
+          char ':'
+          return id
 
 instruction :: AsmParser Operation
-instruction =
-    lexeme (do
-        op <- operation
-        updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
-        case op of
+instruction = lexeme intruction' <?> "Instruction"
+  where intruction' = do
+          op <- operation
+          updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
+          case op of
             "add"   -> register3 >>= \(d, s, t) -> return $ Add d s t
             "beq"   -> offsetOrLabel (Beq, BeqL)
             "bne"   -> offsetOrLabel (Bne, BneL)
@@ -61,40 +64,38 @@ instruction =
             "sub"   -> register3 >>= \(d, s, t) -> return $ Sub d s t
             "sw"    -> loadOrStore Sw
             ".word" -> number >>= \n -> return $ Word n
-    ) <?> "Instruction"
-  where register =
-            do
-                char '$'
-                -- registers may only be specified in base 10
-                reg <- many1 digit
-                let reg' = toBase 10 reg
-                if reg' > 31
-                    then fail $ "No such register: $" ++ reg
-                    else return (fromIntegral reg' :: Register)
-            <?> "Register"
+            _       -> fail $ "Unknown instruction: " ++ op
+        register = lexeme (do
+          char '$'
+          -- registers may only be specified in base 10
+          reg <- many1 digit
+          let reg' = toBase 10 reg
+          if reg' > 31
+            then fail $ "No such register: $" ++ reg
+            else return (fromIntegral reg' :: Register)) <?> "Register"
         register2 = do
-            s <- register
-            comma
-            t <- register
-            return (s, t)
+          s <- register
+          comma
+          t <- register
+          return (s, t)
         register3 = do
-            (d, s) <- register2
-            comma
-            t <- register
-            return (d, s, t)
+          (d, s) <- register2
+          comma
+          t <- register
+          return (d, s, t)
         offsetOrLabel (offsetConstructor, labelConstructor) = do
-            (s, t) <- register2
-            comma
-            do
-                    label <- try identifier
-                    gen <- getState
-                    let currentpos = wordOffset gen
-                    return $ labelConstructor s t label currentpos
-                <|> do
-                    i <- number
-                    checkOffset i
-                    return $ offsetConstructor s t (fromIntegral i :: Offset)
-                <?> "Offset or Label"
+          (s, t) <- register2
+          comma
+          do
+            label <- try identifier
+            gen <- getState
+            let currentpos = wordOffset gen
+            return $ labelConstructor s t label currentpos
+            <|> do
+              i <- number
+              checkOffset i
+              return $ offsetConstructor s t (fromIntegral i :: Offset)
+            <?> "Offset or Label"
         loadOrStore cons = do
             t <- register
             comma
@@ -103,9 +104,9 @@ instruction =
             s <- parens register
             return $ cons t (fromIntegral i :: Offset) s
         checkOffset i = if i > (fromIntegral (maxBound :: Offset) :: MipsWord)
-                            then fail "Offset too large to fit"
-                            else return ()
-        operation = many1 (letter <|> char '.')
+                          then fail "Offset too large to fit"
+                          else return ()
+        operation = (lexeme $ many1 (letter <|> char '.')) <?> "Operation"
 
 number :: AsmParser MipsWord
 number =
@@ -130,20 +131,23 @@ comment = do
 toBase :: Integer -> String -> Integer
 toBase base = foldl' (\acc x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0
 
-comma = lexeme $ char ','
+comma = lexeme (char ',') <?> "Comma"
 identifier = many1 letter
 lexeme p = do
-    ret <- p
-    whiteSpaceLine
-    return ret
+  whiteSpaceLine
+  ret <- try p
+  whiteSpaceLine
+  return ret
 parens p = do
-    lexeme $ char '('
-    ret <- p
-    lexeme $ char ')'
-    return ret
+  lexeme (char '(') <?> "'('"
+  ret <- p
+  lexeme (char ')') <?> "')'"
+  return ret
 whiteSpaceLine = do
     many $ satisfy $ \s -> isSpace s && s /= '\n'
     option "" comment
 whiteSpace = many $ do
-    many space
+    many1 space
     option "" comment
+
+tryParse p s = runParser p (Generation M.empty 0) "" s
