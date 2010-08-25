@@ -12,22 +12,15 @@ type AsmParser a = CharParser Generation a
 
 parser :: AsmParser (Generation, [Operation])
 parser = do
+  many label
+  ops <- many line
   whiteSpace
-  many $ try label
-  ops <- many1 line
   gen <- getState
   (eof <?> "End of file")
   return (gen, ops)
 
 line :: AsmParser Operation
-line = do
-  many $ try label
-  op <- instruction
-  whiteSpaceLine
-  (eol <?> "End of line")
-  whiteSpace
-  return op
-      where eol = newline <|> (char '\r' >> char '\n')
+line = many label >> instruction
 
 label :: AsmParser String
 label = lexeme label' <?> "Label"
@@ -41,50 +34,54 @@ label = lexeme label' <?> "Label"
           return id
 
 instruction :: AsmParser Operation
-instruction = lexeme intruction' <?> "Instruction"
+instruction = whiteSpace >> intruction' <?> "Instruction"
   where intruction' = do
           op <- operation
           updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
           case op of
-            "add"   -> register3 >>= \(d, s, t) -> return $ Add d s t
+            "add"   -> register3 Add
             "beq"   -> offsetOrLabel (Beq, BeqL)
             "bne"   -> offsetOrLabel (Bne, BneL)
-            "div"   -> register2 >>= \(s, t) -> return $ Div s t
-            "divu"  -> register2 >>= \(s, t) -> return $ Divu s t
-            "jalr"  -> register >>= \s -> return $ Jalr s
-            "jr"    -> register >>= \s -> return $ Jr s
-            "lis"   -> register >>= \d -> return $ Lis d
+            "div"   -> register2 Div
+            "divu"  -> register2 Divu
+            "jalr"  -> register >>= return . Jalr
+            "jr"    -> register >>= return . Jr
+            "lis"   -> register >>= return . Lis
             "lw"    -> loadOrStore Lw
-            "mfhi"  -> register >>= \d -> return $ Mfhi d
-            "mflo"  -> register >>= \d -> return $ Mflo d
-            "mult"  -> register2 >>= \(s, t) -> return $ Mult s t
-            "multu" -> register2 >>= \(s, t) -> return $ Multu s t
-            "slt"   -> register3 >>= \(d, s, t) -> return $ Slt d s t
-            "sltu"  -> register3 >>= \(d, s, t) -> return $ Sltu d s t
-            "sub"   -> register3 >>= \(d, s, t) -> return $ Sub d s t
+            "mfhi"  -> register >>= return . Mfhi
+            "mflo"  -> register >>= return . Mflo
+            "mult"  -> register2 Mult
+            "multu" -> register2 Multu
+            "slt"   -> register3 Slt
+            "sltu"  -> register3 Sltu
+            "sub"   -> register3 Sub
             "sw"    -> loadOrStore Sw
-            ".word" -> number >>= \n -> return $ Word n
+            ".word" -> number >>= return . Word
             _       -> fail $ "Unknown instruction: " ++ op
-        register = lexeme (do
-          char '$'
+        register = do
+          whiteSpace
+          char '$' <?> "Register"
           -- registers may only be specified in base 10
-          reg <- many1 digit
+          reg <- many1 digit <?> "Register number"
           let reg' = toBase 10 reg
           if reg' > 31
             then fail $ "No such register: $" ++ reg
-            else return (fromIntegral reg' :: Register)) <?> "Register"
-        register2 = do
+            else return (fromIntegral reg' :: Register)
+        register2 cons = do
           s <- register
           comma
           t <- register
-          return (s, t)
-        register3 = do
-          (d, s) <- register2
+          return $ cons s t
+        register3 cons = do
+          d <- register
+          comma
+          s <- register
+          comma
+          register >>= return . cons d s
+        offsetOrLabel (offsetConstructor, labelConstructor) = do
+          s <- register
           comma
           t <- register
-          return (d, s, t)
-        offsetOrLabel (offsetConstructor, labelConstructor) = do
-          (s, t) <- register2
           comma
           do
             label <- try identifier
@@ -109,45 +106,41 @@ instruction = lexeme intruction' <?> "Instruction"
         operation = (lexeme $ many1 (letter <|> char '.')) <?> "Operation"
 
 number :: AsmParser MipsWord
-number =
-    lexeme (do
-            char '-'
-            n <- many1 digit >>= check . toBase 10
-            check $ (fromIntegral $ complement n + 1 :: Integer)
-        <|> do
+number = lexeme  number' <?> "Number"
+  where number' = do
+              char '-'
+              n <- many1 digit >>= check . toBase 10
+              check $ (fromIntegral $ complement n + 1 :: Integer)
+          <|> do
             try $ string "0x"
             many1 hexDigit >>= check . toBase 16
-        <|> (many1 digit >>= check . toBase 10)
-        <?> "Number")
-  where check n = if n > (fromIntegral (maxBound :: MipsWord) :: Integer)
+          <|> (many1 digit >>= check . toBase 10)
+        check n = if n > (fromIntegral (maxBound :: MipsWord) :: Integer)
                     then fail "Number too large"
                     else return (fromIntegral n :: MipsWord)
 
-comment :: AsmParser [Char]
-comment = do
-    char ';'
-    many $ satisfy (/= '\n')
+
 
 toBase :: Integer -> String -> Integer
 toBase base = foldl' (\acc x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0
 
 comma = lexeme (char ',') <?> "Comma"
 identifier = many1 letter
-lexeme p = do
-  whiteSpaceLine
-  ret <- try p
-  whiteSpaceLine
-  return ret
 parens p = do
   lexeme (char '(') <?> "'('"
   ret <- p
   lexeme (char ')') <?> "')'"
   return ret
-whiteSpaceLine = do
-    many $ satisfy $ \s -> isSpace s && s /= '\n'
-    option "" comment
+
+lexeme p = try $ (whiteSpace >> p)
+
+comment :: AsmParser [Char]
+comment = do
+    char ';'
+    many $ satisfy (/= '\n')
 whiteSpace = many $ do
     many1 space
     option "" comment
+    many space
 
 tryParse p s = runParser p (Generation M.empty 0) "" s

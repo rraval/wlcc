@@ -96,6 +96,7 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                                                           --      Meta operation. The 32 bit number
                                                           --      /i/ will appear literally in the
                                                           --      assembler output.
+                deriving (Show)
 
 -- | Holds state data about the current instruction being assembled.
 data Generation = Generation {
@@ -104,7 +105,7 @@ data Generation = Generation {
                     wordOffset :: Integer               -- ^ Current instruction offset (i.e. how
                                                         --   many instructions have already been
                                                         --   assembled).
-                  }
+                  } deriving (Show)
 
 -- | Type used for every assembled instruction.
 newtype MipsWord = MipsWord Word32
