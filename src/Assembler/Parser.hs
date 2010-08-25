@@ -12,13 +12,13 @@ type AsmParser a = CharParser Generation a
 
 parser :: AsmParser (Generation, [Operation])
 parser = do
-  many label
-  ops <- many line
   whiteSpace
+  ops <- many line
   gen <- getState
   (eof <?> "End of file")
   return (gen, ops)
 
+-- FIXME: what about labels followed by no instruction?
 line :: AsmParser Operation
 line = many label >> instruction
 
@@ -34,8 +34,12 @@ label = lexeme label' <?> "Label"
           return id
 
 instruction :: AsmParser Operation
-instruction = whiteSpace >> intruction' <?> "Instruction"
-  where intruction' = do
+instruction = do whiteSpace
+                 op <- instruction'
+                 whiteSpace
+                 return op
+              <?> "Instruction"
+  where instruction' = do
           op <- operation
           updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
           case op of
@@ -118,8 +122,6 @@ number = lexeme  number' <?> "Number"
         check n = if n > (fromIntegral (maxBound :: MipsWord) :: Integer)
                     then fail "Number too large"
                     else return (fromIntegral n :: MipsWord)
-
-
 
 toBase :: Integer -> String -> Integer
 toBase base = foldl' (\acc x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0

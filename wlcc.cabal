@@ -1,4 +1,4 @@
-Name:                wlpp
+Name:                wlcc
 Version:             0.1
 Synopsis:            WLPP to MIPS compiler
 License:             GPL
@@ -7,6 +7,6 @@ Maintainer:          Ronuk Raval <ronuk.raval@gmail.com>
 Build-Depends:       base>=4,containers,parsec
 Build-Type:          Simple
 
-Executable:          wlpp
+Executable:          wlcc
 hs-source-dirs:      src
 Main-is:             Main.hs
