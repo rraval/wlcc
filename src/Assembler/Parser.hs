@@ -13,14 +13,17 @@ type AsmParser a = CharParser Generation a
 parser :: AsmParser (Generation, [Operation])
 parser = do
   whiteSpace
+  many label
   ops <- many line
   gen <- getState
   (eof <?> "End of file")
   return (gen, ops)
 
--- FIXME: what about labels followed by no instruction?
 line :: AsmParser Operation
-line = many label >> instruction
+line = do
+  op <- instruction
+  many label
+  return op
 
 label :: AsmParser String
 label = lexeme label' <?> "Label"
@@ -34,8 +37,7 @@ label = lexeme label' <?> "Label"
           return id
 
 instruction :: AsmParser Operation
-instruction = do whiteSpace
-                 op <- instruction'
+instruction = do op <- instruction'
                  whiteSpace
                  return op
               <?> "Instruction"
@@ -63,10 +65,9 @@ instruction = do whiteSpace
             ".word" -> number >>= return . Word
             _       -> fail $ "Unknown instruction: " ++ op
         register = do
-          whiteSpace
           char '$' <?> "Register"
           -- registers may only be specified in base 10
-          reg <- many1 digit <?> "Register number"
+          reg <- lexeme (many1 digit) <?> "Register number"
           let reg' = toBase 10 reg
           if reg' > 31
             then fail $ "No such register: $" ++ reg
@@ -134,7 +135,9 @@ parens p = do
   lexeme (char ')') <?> "')'"
   return ret
 
-lexeme p = try $ (whiteSpace >> p)
+lexeme p = do r <- try p
+              whiteSpace
+              return r
 
 comment :: AsmParser [Char]
 comment = do

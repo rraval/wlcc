@@ -109,7 +109,7 @@ data Generation = Generation {
 
 -- | Type used for every assembled instruction.
 newtype MipsWord = MipsWord Word32
-    deriving (Bits, Bounded, Enum, Eq, Integral, Num, Ord, Real)
+                 deriving (Bits, Bounded, Enum, Eq, Integral, Num, Ord, Real)
 
 instance Show MipsWord where
     show = map chr . splitBytes

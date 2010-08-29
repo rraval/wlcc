@@ -62,6 +62,8 @@ main = do
   version opts
   inp <- input opts
   case runParser parser (Generation empty 0) (inputFile opts) inp of
-    Right (gen, ops) -> (output opts) $ show $ map (translate gen) ops
+    Right (gen, ops) -> do
+      (output opts) $ show $ map (translate gen) ops
+      IO.hPutStrLn IO.stderr $ show gen
     Left err -> error $ show err
   exitSuccess
