@@ -139,13 +139,12 @@ lexeme p = do r <- try p
               whiteSpace
               return r
 
-comment :: AsmParser [Char]
+comment :: AsmParser String
 comment = do
     char ';'
     many $ satisfy (/= '\n')
 whiteSpace = many $ do
     many1 space
     option "" comment
-    many space
 
 tryParse p s = runParser p (Generation M.empty 0) "" s

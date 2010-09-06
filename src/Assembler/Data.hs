@@ -117,11 +117,18 @@ instance Show MipsWord where
             toByte n w      = fromIntegral $ (w .&. (0xff `shiftL` n)) `shiftR` n :: Int
     showList = showString . concat . map show
 
+-- | Type used to specify registers.
+newtype Register = Register Word8
+                 deriving (Bits, Enum, Eq, Integral, Num, Ord, Real, Show)
+
+instance Bounded Register where
+  minBound = 0
+  maxBound = 31
+
 type Opcode = Word8         -- ^ Specifies the top 6 bits of an instruction (the /opcode/ field
                             --   of a MIPS instruction.
 type Funct = Word8          -- ^ Specifies the lower 6 bits of an instruction (the /funct/ field
                             --   of a MIPS R-format instruction.
-type Register = Word8       -- ^ Type used to specify registers.
 type Destination = Register -- ^ Register specifying destination. Seen as @$d@ in documentation.
                             --   Only uses 5 bits.
 type Source = Register      -- ^ Register specifying first source. Seen as @$s@ in documentation.
