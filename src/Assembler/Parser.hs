@@ -143,8 +143,6 @@ comment :: AsmParser String
 comment = do
     char ';'
     many $ satisfy (/= '\n')
-whiteSpace = many $ do
-    many1 space
-    option "" comment
+whiteSpace = many (many1 space <|> comment) <?> "Whitespace"
 
 tryParse p s = runParser p (Generation M.empty 0) "" s
