@@ -107,15 +107,13 @@ data Generation = Generation {
                                                         --   assembled).
                   } deriving (Show)
 
--- | Type used for every assembled instruction.
-newtype MipsWord = MipsWord Word32
-                 deriving (Bits, Bounded, Enum, Eq, Integral, Num, Ord, Real)
+type MipsWord = Word32                                  -- ^ Type used for every assembled instruction.
 
-instance Show MipsWord where
-    show = map chr . splitBytes
-      where splitBytes w    = [toByte 24 w, toByte 16 w, toByte 8 w, toByte 0 w]
-            toByte n w      = fromIntegral $ (w .&. (0xff `shiftL` n)) `shiftR` n :: Int
-    showList = showString . concat . map show
+-- | Display a bunch of 'MipsWord's as a binary sequence of bytes.
+binaryShow :: [MipsWord] -> String
+binaryShow = foldr ($) "" . map bShow
+  where bShow mw = showString $ map (chr . byte mw) [24, 16, 8, 0]
+        byte w o = fromIntegral $ (w .&. (0xff `shiftL` o)) `shiftR` o :: Int
 
 -- | Type used to specify registers.
 newtype Register = Register Word8

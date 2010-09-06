@@ -8,7 +8,7 @@ import System.Environment(getArgs)
 import System.Exit(exitFailure, exitSuccess)
 import Text.ParserCombinators.Parsec(runParser)
 
-import Assembler.Data(Generation(..))
+import Assembler.Data(Generation(..), binaryShow)
 import Assembler.Parser(parser)
 import Assembler.Translator(translate)
 
@@ -63,7 +63,7 @@ main = do
   inp <- input opts
   case runParser parser (Generation empty 0) (inputFile opts) inp of
     Right (gen, ops) -> do
-      (output opts) $ show $ map (translate gen) ops
+      (output opts) $ binaryShow $ map (translate gen) ops
       IO.hPutStrLn IO.stderr $ show gen
     Left err -> error $ show err
   exitSuccess
