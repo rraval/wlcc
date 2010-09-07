@@ -111,17 +111,20 @@ type MipsWord = Word32                                  -- ^ Type used for every
 
 -- | Display a bunch of 'MipsWord's as a binary sequence of bytes.
 binaryShow :: [MipsWord] -> String
-binaryShow = foldr ($) "" . map bShow
-  where bShow mw = showString $ map (chr . byte mw) [24, 16, 8, 0]
+binaryShow = foldr (++) "" . map bShow
+  where bShow mw = map (chr . byte mw) [24, 16, 8, 0]
         byte w o = fromIntegral $ (w .&. (0xff `shiftL` o)) `shiftR` o :: Int
 
 -- | Type used to specify registers.
 newtype Register = Register Word8
-                 deriving (Bits, Enum, Eq, Integral, Num, Ord, Real, Show)
+                 deriving (Bits, Enum, Eq, Integral, Num, Ord, Real)
 
 instance Bounded Register where
   minBound = 0
   maxBound = 31
+
+instance Show Register where
+  show (Register r) = show r
 
 type Opcode = Word8         -- ^ Specifies the top 6 bits of an instruction (the /opcode/ field
                             --   of a MIPS instruction.
