@@ -96,7 +96,7 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                                                           --      Meta operation. The 32 bit number
                                                           --      /i/ will appear literally in the
                                                           --      assembler output.
-                deriving (Show)
+                deriving (Eq, Show)
 
 -- | Holds state data about the current instruction being assembled.
 data Generation = Generation {

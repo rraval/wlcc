@@ -1,11 +1,13 @@
 module Assembler.Tests(main) where
 
 import Control.Monad(liftM, liftM2, liftM3)
+import Data.Map(empty)
 import Data.Word(Word16, Word32)
 import Test.QuickCheck
+import Text.ParserCombinators.Parsec(runParser)
 
 import Assembler.Data
-import Assembler.Parser
+import Assembler.Parser(parser)
 
 instance Arbitrary Register where
   arbitrary = arbitraryBoundedIntegral
@@ -126,4 +128,13 @@ instance Arbitrary ProgramLine where
             reg2 <- padR s
             right <- pad ")"
             return $ ProgramLine op $ instr ++ reg1 ++ comma1 ++ off ++ left ++ reg2 ++ right
-main = undefined
+
+-- default Generation for use in tests
+testgen = Generation empty 0
+
+parseLine :: ProgramLine -> Bool
+parseLine p = case runParser parser testgen "" $ source p of
+  Right (gen, [ops])    -> ops == expected p
+  Left err              -> error $ show err
+
+main = quickCheck $ label "Single Line" parseLine

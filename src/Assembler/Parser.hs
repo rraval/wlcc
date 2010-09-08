@@ -145,4 +145,3 @@ comment = do
     many $ satisfy (/= '\n')
 whiteSpace = many (many1 space <|> comment) <?> "Whitespace"
 
-tryParse p s = runParser p (Generation M.empty 0) "" s
