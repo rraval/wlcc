@@ -51,13 +51,17 @@ instance Arbitrary LabelChar where
   arbitrary = elements $ map LabelChar $ ['a'..'z'] ++ ['A'..'Z']
 -}
 
-newtype Whitespace = Whitespace Char
+newtype Whitespace = Whitespace String
 instance Arbitrary Whitespace where
-  arbitrary = elements $ map Whitespace $ [' ', '\t', '\f', '\v', '\n']
+  arbitrary = oneof
+              [ liftM Whitespace $ listOf1 $ elements $ [' ', '\t', '\f', '\v', '\n']
+              , do content <- (arbitrary :: Gen String)
+                   return $ Whitespace $ ';' : filter (/= '\n') content ++ "\n"
+              ]
 instance Show Whitespace where
-  show (Whitespace c) = c:[]
+  show (Whitespace s) = s
   showList = showString . foldr extract []
-    where extract (Whitespace c) cs = c : cs
+    where extract (Whitespace s) cs = s ++ cs
 
 data ProgramLine = ProgramLine
                { expected   :: Operation
@@ -89,8 +93,8 @@ instance Arbitrary ProgramLine where
         word <- pad $ show w
         return $ ProgramLine op $ instr ++ word
     where pad x = do
-            init <- listOf1 (arbitrary :: Gen Whitespace)
-            end <- listOf1 (arbitrary :: Gen Whitespace)
+            init <- (arbitrary :: Gen Whitespace)
+            end <- (arbitrary :: Gen Whitespace)
             return $ (show init) ++ x ++ (show end)
           padR r = pad $ "$" ++ show r
           register3 op x d s t = do
@@ -132,9 +136,9 @@ instance Arbitrary ProgramLine where
 -- default Generation for use in tests
 testgen = Generation empty 0
 
-parseLine :: ProgramLine -> Bool
-parseLine p = case runParser parser testgen "" $ source p of
+parseInstr :: ProgramLine -> Bool
+parseInstr p = case runParser parser testgen "" $ source p of
   Right (gen, [ops])    -> ops == expected p
   Left err              -> error $ show err
 
-main = quickCheck $ label "Single Line" parseLine
+main = quickCheck $ label "Single Instruction" parseInstr
