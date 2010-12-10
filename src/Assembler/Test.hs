@@ -10,60 +10,58 @@ import Assembler.Data
 import Assembler.Parser(parser)
 
 instance Arbitrary Register where
-  arbitrary = arbitraryBoundedIntegral
+    arbitrary = arbitraryBoundedIntegral
 
 instance Arbitrary Word16 where
-  arbitrary = arbitraryBoundedIntegral
+    arbitrary = arbitraryBoundedIntegral
 
 instance Arbitrary Word32 where
-  arbitrary = arbitraryBoundedIntegral
+    arbitrary = arbitraryBoundedIntegral
 
 instance Arbitrary Operation where
-  arbitrary = oneof
-              [ liftM3 Add arbitrary arbitrary arbitrary
-              , liftM3 Beq arbitrary arbitrary arbitrary
-              , liftM3 Bne arbitrary arbitrary arbitrary
-              , liftM2 Div arbitrary arbitrary
-              , liftM2 Divu arbitrary arbitrary
-              , liftM Jalr arbitrary
-              , liftM Jr arbitrary
-              , liftM Lis arbitrary
-              , liftM3 Lw arbitrary arbitrary arbitrary
-              , liftM Mfhi arbitrary
-              , liftM Mflo arbitrary
-              , liftM2 Mult arbitrary arbitrary
-              , liftM2 Multu arbitrary arbitrary
-              , liftM3 Slt arbitrary arbitrary arbitrary
-              , liftM3 Sltu arbitrary arbitrary arbitrary
-              , liftM3 Sub arbitrary arbitrary arbitrary
-              , liftM3 Sw arbitrary arbitrary arbitrary
-              , liftM Word arbitrary
-              ]
+    arbitrary = oneof
+        [ liftM3 Add arbitrary arbitrary arbitrary
+        , liftM3 Beq arbitrary arbitrary arbitrary
+        , liftM3 Bne arbitrary arbitrary arbitrary
+        , liftM2 Div arbitrary arbitrary
+        , liftM2 Divu arbitrary arbitrary
+        , liftM Jalr arbitrary
+        , liftM Jr arbitrary
+        , liftM Lis arbitrary
+        , liftM3 Lw arbitrary arbitrary arbitrary
+        , liftM Mfhi arbitrary
+        , liftM Mflo arbitrary
+        , liftM2 Mult arbitrary arbitrary
+        , liftM2 Multu arbitrary arbitrary
+        , liftM3 Slt arbitrary arbitrary arbitrary
+        , liftM3 Sltu arbitrary arbitrary arbitrary
+        , liftM3 Sub arbitrary arbitrary arbitrary
+        , liftM3 Sw arbitrary arbitrary arbitrary
+        , liftM Word arbitrary
+        ]
 
 -- Can't use Label because that's exported by Assembler.Data
 -- QC prefix is for "QuickCheck", aren't I clever?
 newtype QCLabel = QCLabel String
 instance Arbitrary QCLabel where
-  arbitrary = liftM QCLabel $ listOf1 $ elements $ ['A'..'Z'] ++ ['a'..'z']
+    arbitrary = liftM QCLabel $ listOf1 $ elements $ ['A'..'Z'] ++ ['a'..'z']
 instance Show QCLabel where
-  show (QCLabel s) = s
+    show (QCLabel s) = s
 
 newtype Whitespace = Whitespace String
 instance Arbitrary Whitespace where
-  {-
-  arbitrary = oneof
-              [ liftM Whitespace $ listOf1 $ elements $ [' ', '\t', '\f', '\v', '\n']
-              , do  content <- arbitrary :: Gen String
-                    return $ Whitespace $ ';' : filter (/= '\n') content ++ "\n"
-              ]
-  -}
+    arbitrary = oneof
+        [ liftM Whitespace $ listOf1 $ elements $ [' ', '\t', '\f', '\v', '\n']
+        , do
+            content <- arbitrary :: Gen String
+            return $ Whitespace $ ';' : filter (/= '\n') content ++ "\n"
+        ]
 
-  arbitrary = return $ Whitespace " "
 instance Show Whitespace where
-  show (Whitespace s) = s
+    show (Whitespace s) = s
 
 instance Arbitrary Generation where
-  arbitrary = do
+    arbitrary = do
         -- figure out number of operations after the parse
         numops <- suchThat (arbitrary :: Gen Integer) (>=0)
         -- generate a whole bunch of labels and pick a location for it's definition
@@ -72,13 +70,13 @@ instance Arbitrary Generation where
         return $ Generation (M.fromList labels) numops
 
 data Program = Program
-               { expected   :: [Operation]  -- ^ expected result from parsing 'source'
-               , source     :: String       -- ^ randomly generated source text corresponding to 'expected' parse
-               , generation :: Generation   -- ^ information about 'expected' that should accompany parser results
-               } deriving (Show)
+    { expected      :: [Operation]  -- ^ expected result from parsing 'source'
+    , source        :: String       -- ^ randomly generated source text corresponding to 'expected' parse
+    , generation    :: Generation   -- ^ information about 'expected' that should accompany parser results
+    } deriving (Show)
 
 instance Arbitrary Program where
-  arbitrary = do
+    arbitrary = do
         gen <- (arbitrary :: Gen Generation)
         let labels = labelTable gen
         -- lines :: M.Map (Integer, [Label]), i.e. just flip around labels and locations
@@ -207,8 +205,8 @@ emptyGeneration = Generation M.empty 0
 
 parseProgram :: Program -> Bool
 parseProgram p = case runParser parser emptyGeneration "" $ source p of
-  Right (gen, ops)    -> ops == expected p && gen == generation p
-  Left err            -> error $ show err
+    Right (gen, ops)    -> ops == expected p && gen == generation p
+    Left err            -> error $ show err
 
 main = quickCheckResult $ label "Complete Program" parseProgram
 

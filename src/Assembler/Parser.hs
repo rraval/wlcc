@@ -12,35 +12,36 @@ type AsmParser a = CharParser Generation a
 
 parser :: AsmParser (Generation, [Operation])
 parser = do
-  whiteSpace
-  many label
-  ops <- many line
-  gen <- getState
-  (eof <?> "End of file")
-  return (gen, ops)
+    whiteSpace
+    many label
+    ops <- many line
+    gen <- getState
+    (eof <?> "End of file")
+    return (gen, ops)
 
 line :: AsmParser Operation
 line = do
-  op <- instruction
-  many label
-  return op
+    op <- instruction
+    many label
+    return op
 
 label :: AsmParser String
 label = lexeme label' <?> "Label"
   where label' = do
-          id <- many1 letter
-          gen <- getState
-          case M.lookup id $ labelTable gen of
-            Just x -> error $ "Duplicate Label: '" ++ id ++ "'"
-            Nothing -> setState $ gen { labelTable = M.insert id (wordOffset gen) (labelTable gen) }
-          char ':'
-          return id
+            id <- many1 letter
+            gen <- getState
+            case M.lookup id $ labelTable gen of
+                Just x -> error $ "Duplicate Label: '" ++ id ++ "'"
+                Nothing -> setState $ gen { labelTable = M.insert id (wordOffset gen) (labelTable gen) }
+            char ':'
+            return id
 
 instruction :: AsmParser Operation
-instruction = do op <- instruction'
-                 whiteSpace
-                 return op
-              <?> "Instruction"
+instruction = do
+        op <- instruction'
+        whiteSpace
+        return op
+    <?> "Instruction"
   where instruction' = do
             op <- operation
             instr <- case op of
@@ -67,39 +68,39 @@ instruction = do op <- instruction'
             return instr
 
         register = do
-          char '$' <?> "Register"
-          -- registers may only be specified in base 10
-          reg <- lexeme (many1 digit) <?> "Register number"
-          let reg' = toBase 10 reg
-          if reg' > 31
-            then fail $ "No such register: $" ++ reg
-            else return (fromIntegral reg' :: Register)
+            char '$' <?> "Register"
+            -- registers may only be specified in base 10
+            reg <- lexeme (many1 digit) <?> "Register number"
+            let reg' = toBase 10 reg
+            if  reg' > 31
+                then fail $ "No such register: $" ++ reg
+                else return (fromIntegral reg' :: Register)
         register2 cons = do
-          s <- register
-          comma
-          t <- register
-          return $ cons s t
+            s <- register
+            comma
+            t <- register
+            return $ cons s t
         register3 cons = do
-          d <- register
-          comma
-          s <- register
-          comma
-          register >>= return . cons d s
+            d <- register
+            comma
+            s <- register
+            comma
+            register >>= return . cons d s
         offsetOrLabel (offsetConstructor, labelConstructor) = do
-          s <- register
-          comma
-          t <- register
-          comma
-          do
-            label <- try identifier
-            gen <- getState
-            let currentpos = wordOffset gen
-            return $ labelConstructor s t label currentpos
-            <|> do
-              i <- number
-              checkOffset i
-              return $ offsetConstructor s t (fromIntegral i :: Offset)
-            <?> "Offset or Label"
+            s <- register
+            comma
+            t <- register
+            comma
+            do
+                    label <- try identifier
+                    gen <- getState
+                    let currentpos = wordOffset gen
+                    return $ labelConstructor s t label currentpos
+                <|> do
+                    i <- number
+                    checkOffset i
+                    return $ offsetConstructor s t (fromIntegral i :: Offset)
+                <?> "Offset or Label"
         loadOrStore cons = do
             t <- register
             comma
@@ -108,20 +109,20 @@ instruction = do op <- instruction'
             s <- parens register
             return $ cons t (fromIntegral i :: Offset) s
         checkOffset i = if i > (fromIntegral (maxBound :: Offset) :: MipsWord)
-                          then fail "Offset too large to fit"
-                          else return ()
+                            then fail "Offset too large to fit"
+                            else return ()
         operation = (lexeme $ many1 (letter <|> char '.')) <?> "Operation"
 
 number :: AsmParser MipsWord
 number = lexeme  number' <?> "Number"
   where number' = do
-              char '-'
-              n <- many1 digit >>= check . toBase 10
-              check $ (fromIntegral $ complement n + 1 :: Integer)
-          <|> do
-            try $ string "0x"
-            many1 hexDigit >>= check . toBase 16
-          <|> (many1 digit >>= check . toBase 10)
+                char '-'
+                n <- many1 digit >>= check . toBase 10
+                check $ (fromIntegral $ complement n + 1 :: Integer)
+            <|> do
+                try $ string "0x"
+                many1 hexDigit >>= check . toBase 16
+            <|> (many1 digit >>= check . toBase 10)
         check n = if n > (fromIntegral (maxBound :: MipsWord) :: Integer)
                     then fail "Number too large"
                     else return (fromIntegral n :: MipsWord)
@@ -132,18 +133,20 @@ toBase base = foldl' (\acc x -> acc * base + (fromIntegral $ digitToInt x :: Int
 comma = lexeme (char ',') <?> "Comma"
 identifier = many1 letter
 parens p = do
-  lexeme (char '(') <?> "'('"
-  ret <- p
-  lexeme (char ')') <?> "')'"
-  return ret
+    lexeme (char '(') <?> "'('"
+    ret <- p
+    lexeme (char ')') <?> "')'"
+    return ret
 
-lexeme p = do r <- try p
-              whiteSpace
-              return r
+lexeme p = do
+    r <- try p
+    whiteSpace
+    return r
 
 comment :: AsmParser String
 comment = do
     char ';'
     many $ satisfy (/= '\n')
+
 whiteSpace = many (many1 space <|> comment) <?> "Whitespace"
 

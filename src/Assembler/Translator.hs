@@ -7,29 +7,33 @@ import qualified Data.Map as M
 
 -- | Generate a R-format instruction. See 'translate'.
 genRegister :: Funct -> Destination -> Source -> Tource -> MipsWord
-genRegister o d s t = let   s' = (fromIntegral s :: MipsWord) `shiftL` 21
-                            t' = (fromIntegral t :: MipsWord) `shiftL` 16
-                            d' = (fromIntegral d :: MipsWord) `shiftL` 11
-                            o' = fromIntegral o  :: MipsWord
-                      in s' .|. t' .|. d' .|. o'
+genRegister o d s t =
+    let s' = (fromIntegral s :: MipsWord) `shiftL` 21
+        t' = (fromIntegral t :: MipsWord) `shiftL` 16
+        d' = (fromIntegral d :: MipsWord) `shiftL` 11
+        o' = fromIntegral o  :: MipsWord
+    in s' .|. t' .|. d' .|. o'
 
 -- | Generate an I-format instruction. See 'translate'.
 genImmediate :: Opcode -> Source -> Tource -> Offset -> MipsWord
-genImmediate op s t off = let   op'  = (fromIntegral op  :: MipsWord) `shiftL` 26
-                                s'   = (fromIntegral s   :: MipsWord) `shiftL` 21
-                                t'   = (fromIntegral t   :: MipsWord) `shiftL` 16
-                                off' = fromIntegral off  :: MipsWord
-                          in op' .|. s' .|. t' .|. off'
+genImmediate op s t off =
+    let op' = (fromIntegral op :: MipsWord) `shiftL` 26
+        s' = (fromIntegral s :: MipsWord) `shiftL` 21
+        t' = (fromIntegral t :: MipsWord) `shiftL` 16
+        off' = fromIntegral off :: MipsWord
+    in op' .|. s' .|. t' .|. off'
 
 -- | Looks up a label and returns a relative offset understood by 'Beq' and its like, or generates
 --   an error if the label has never been defined.
 genOffset :: Generation -> Label -> Integer -> Offset
-genOffset g l c = case M.lookup l $ labelTable g of
-                    Nothing -> error $ "Unknown label: " ++ l
-                    Just o  -> let off = o - c - 1 in
-                                   if off > 0xffff
-                                   then error "Offset between word offset and label cannot fit"
-                                   else fromIntegral off :: Offset
+genOffset g l c =
+    case M.lookup l $ labelTable g of
+        Nothing -> error $ "Unknown label: " ++ l
+        Just o  ->
+            let off = o - c - 1 in
+                if off > 0xffff
+                then error "Offset between word offset and label cannot fit"
+                else fromIntegral off :: Offset
 
 -- | Generate a corresponding bit pattern for every 'Operation'.
 translate :: Generation -> Operation -> MipsWord
