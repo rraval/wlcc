@@ -5,7 +5,7 @@ import Assembler.Data
 import Data.Bits((.|.), shiftL)
 import qualified Data.Map as M
 
--- | Generate a R-format instruction.
+-- | Generate a R-format instruction. See 'translate'.
 genRegister :: Funct -> Destination -> Source -> Tource -> MipsWord
 genRegister o d s t = let   s' = (fromIntegral s :: MipsWord) `shiftL` 21
                             t' = (fromIntegral t :: MipsWord) `shiftL` 16
@@ -13,7 +13,7 @@ genRegister o d s t = let   s' = (fromIntegral s :: MipsWord) `shiftL` 21
                             o' = fromIntegral o  :: MipsWord
                       in s' .|. t' .|. d' .|. o'
 
--- | Generate an I-format instruction.
+-- | Generate an I-format instruction. See 'translate'.
 genImmediate :: Opcode -> Source -> Tource -> Offset -> MipsWord
 genImmediate op s t off = let   op'  = (fromIntegral op  :: MipsWord) `shiftL` 26
                                 s'   = (fromIntegral s   :: MipsWord) `shiftL` 21
@@ -31,7 +31,7 @@ genOffset g l c = case M.lookup l $ labelTable g of
                                    then error "Offset between word offset and label cannot fit"
                                    else fromIntegral off :: Offset
 
--- | Generate a corresponding instruction for every 'Operation'.
+-- | Generate a corresponding bit pattern for every 'Operation'.
 translate :: Generation -> Operation -> MipsWord
 translate g (Add d s t)     = genRegister 0x20 d s t
 translate g (Beq s t o)     = genImmediate 0x4 s t o

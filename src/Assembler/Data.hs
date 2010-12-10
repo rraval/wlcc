@@ -24,7 +24,7 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                                                           --      label, which must be defined
                                                           --      elsewhere. See 'Beq'.
                                                           --
-                                                          --      The last 'Word32' holds the current
+                                                          --      The last 'Integer' holds the current
                                                           --      position.
                 | Bne   Source      Tource  Offset        -- ^ [@bne $s, $t, i@]
                                                           --      Branch on Not Equal. /i/ must be 16
@@ -39,7 +39,7 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                                                           --      accepts a label instead of offset.
                                                           --      See 'BeqL'
                                                           --
-                                                          --      The last 'Word32' holds the current
+                                                          --      The last 'Integer' holds the current
                                                           --      position.
                 | Div   Source      Tource                -- ^ [@div $s, $t@]
                                                           --      Signed Division.
@@ -105,7 +105,7 @@ data Generation = Generation {
                     wordOffset :: Integer               -- ^ Current instruction offset (i.e. how
                                                         --   many instructions have already been
                                                         --   assembled).
-                  } deriving (Show)
+                  } deriving (Eq, Show)
 
 type MipsWord = Word32                                  -- ^ Type used for every assembled instruction.
 

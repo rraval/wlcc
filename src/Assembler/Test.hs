@@ -1,7 +1,7 @@
 module Assembler.Tests(main) where
 
 import Control.Monad(liftM, liftM2, liftM3)
-import Data.Map(empty)
+import qualified Data.Map as M
 import Data.Word(Word16, Word32)
 import Test.QuickCheck
 import Text.ParserCombinators.Parsec(runParser)
@@ -40,105 +40,175 @@ instance Arbitrary Operation where
               , liftM Word arbitrary
               ]
 
--- for labels
-{-
-newtype LabelChar = LabelChar Char
-instance Show LabelChar where
-  show (LabelChar c) = c:[]
-  showList = showString . foldr extract []
-    where extract (LabelChar c) cs = c : cs
-instance Arbitrary LabelChar where
-  arbitrary = elements $ map LabelChar $ ['a'..'z'] ++ ['A'..'Z']
--}
+-- Can't use Label because that's exported by Assembler.Data
+-- QC prefix is for "QuickCheck", aren't I clever?
+newtype QCLabel = QCLabel String
+instance Arbitrary QCLabel where
+  arbitrary = liftM QCLabel $ listOf1 $ elements $ ['A'..'Z'] ++ ['a'..'z']
+instance Show QCLabel where
+  show (QCLabel s) = s
 
 newtype Whitespace = Whitespace String
 instance Arbitrary Whitespace where
+  {-
   arbitrary = oneof
               [ liftM Whitespace $ listOf1 $ elements $ [' ', '\t', '\f', '\v', '\n']
-              , do content <- (arbitrary :: Gen String)
-                   return $ Whitespace $ ';' : filter (/= '\n') content ++ "\n"
+              , do  content <- arbitrary :: Gen String
+                    return $ Whitespace $ ';' : filter (/= '\n') content ++ "\n"
               ]
+  -}
+
+  arbitrary = return $ Whitespace " "
 instance Show Whitespace where
   show (Whitespace s) = s
-  showList = showString . foldr extract []
-    where extract (Whitespace s) cs = s ++ cs
 
-data ProgramLine = ProgramLine
-               { expected   :: Operation
-               , source     :: String
-               } deriving (Show)
-instance Arbitrary ProgramLine where
+instance Arbitrary Generation where
   arbitrary = do
-    op <- (arbitrary :: Gen Operation)
-    case op of
-      (Add d s t)   -> register3 op "add" d s t
-      (Beq s t o)   -> offset op "beq" s t o
-      (Bne s t o)   -> offset op "bne" s t o
-      (Div s t)     -> register2 op "div" s t
-      (Divu s t)    -> register2 op "divu" s t
-      (Jalr s)      -> register op "jalr" s
-      (Jr s)        -> register op "jr" s
-      (Lis d)       -> register op "lis" d
-      (Lw t o s)    -> memory op "lw" t o s
-      (Mfhi d)      -> register op "mfhi" d
-      (Mflo d)      -> register op "mflo" d
-      (Mult s t)    -> register2 op "mult" s t
-      (Multu s t)   -> register2 op "multu" s t
-      (Slt d s t)   -> register3 op "slt" d s t
-      (Sltu d s t)  -> register3 op "sltu" d s t
-      (Sub d s t)   -> register3 op "sub" d s t
-      (Sw t o s)    -> memory op "sw" t o s
-      (Word w)      -> do
-        instr <- pad ".word"
-        word <- pad $ show w
-        return $ ProgramLine op $ instr ++ word
-    where pad x = do
-            init <- (arbitrary :: Gen Whitespace)
-            end <- (arbitrary :: Gen Whitespace)
-            return $ (show init) ++ x ++ (show end)
-          padR r = pad $ "$" ++ show r
-          register3 op x d s t = do
-            instr <- pad x
-            reg1 <- padR d
-            comma1 <- pad ","
-            reg2 <- padR s
-            comma2 <- pad ","
-            reg3 <- padR t
-            return $ ProgramLine op $ instr ++ reg1 ++ comma1 ++ reg2 ++ comma2 ++ reg3
-          register2 op x s t = do
-            instr <- pad x
-            reg1 <- padR s
+        -- figure out number of operations after the parse
+        numops <- suchThat (arbitrary :: Gen Integer) (>=0)
+        -- generate a whole bunch of labels and pick a location for it's definition
+        -- labels :: (QCLabel, Integer)
+        labels <- listOf1 $ liftM2 (,) (liftM show (arbitrary :: Gen QCLabel)) $ choose (0, numops)
+        return $ Generation (M.fromList labels) numops
+
+data Program = Program
+               { expected   :: [Operation]  -- ^ expected result from parsing 'source'
+               , source     :: String       -- ^ randomly generated source text corresponding to 'expected' parse
+               , generation :: Generation   -- ^ information about 'expected' that should accompany parser results
+               } deriving (Show)
+
+instance Arbitrary Program where
+  arbitrary = do
+        gen <- (arbitrary :: Gen Generation)
+        let labels = labelTable gen
+        -- lines :: M.Map (Integer, [Label]), i.e. just flip around labels and locations
+            flipLabelTable label location = M.insertWith (++) location [label]
+            lines = M.foldWithKey flipLabelTable M.empty labels
+        -- (wordOffset gen) is the required number of operations
+        -- nolabelsource :: [(Operation, String)]
+        -- Each element of nolabelsource contains the expected operation after parsing and the corresponding
+        -- source text. However, this source does not yet include label definitions (since we don't know
+        -- operation offsets yet).
+        nolabelsource <- vectorOf (fromIntegral (wordOffset gen)) $ oneof $ operations labels
+        -- generate the labels at the end of the file (not generated by the foldr below)
+        lastlabels <- labelsForLine lines $ wordOffset gen
+        -- Add label definitions to the nolabelsource and flatten it all as one string.
+        (ops, src) <- foldr (generateLabels lines) (return ([], lastlabels)) $ zip [0..] nolabelsource
+        return $ Program ops src gen
+    where
+        operations :: M.Map String Integer -> [Gen (Operation, String)]
+        operations labels = [ register3           Add     "add"
+                            , branch              Beq     "beq"
+                            , branchLabel labels  BeqL    "beq"
+                            , branch              Bne     "bne"
+                            , branchLabel labels  BneL    "bne"
+                            , register2           Div     "div"
+                            , register2           Divu    "divu"
+                            , register            Jalr    "jalr"
+                            , register            Jr      "jr"
+                            , register            Lis     "lis"
+                            , memory              Lw      "lw"
+                            , register            Mfhi    "mfhi"
+                            , register            Mflo    "mflo"
+                            , register2           Mult    "mult"
+                            , register2           Multu   "multu"
+                            , register3           Slt     "slt"
+                            , register3           Sltu    "sltu"
+                            , register3           Sub     "sub"
+                            , memory              Sw      "sw"
+                            , do -- Word
+                                instr <- pad ".word"
+                                word <- (arbitrary :: Gen MipsWord)
+                                return $ (Word word, instr ++ show word)
+                            ]
+        generateLabels ::   M.Map Integer [Label] ->
+                            (Integer, (Operation, String)) ->
+                            Gen ([Operation], String) ->
+                            Gen ([Operation], String)
+        generateLabels lines (offset, (op, instr)) gen = do
+            (ops, src) <- gen
+            let newop = case op of
+                    (BeqL s t l o) -> BeqL s t l offset
+                    (BneL s t l o) -> BneL s t l offset
+                    _ -> op
+
+            case M.lookup offset lines of
+                Nothing -> return (newop : ops, instr ++ src)
+                Just ls -> do
+                    labelsrc <- labelsForLine lines offset
+                    return $ (newop : ops, labelsrc ++ instr ++ src)
+
+        labelsForLine :: M.Map Integer [Label] -> Integer -> Gen String
+        labelsForLine lines offset = do
+            -- see if we have labels defined for this offset
+            case M.lookup offset lines of
+                Nothing -> pad $ "" -- put in some whitespace for kicks
+                -- add a colon to every label and pad with whitespace, then flatten the list
+                -- to a single string
+                Just ls -> foldr1 (liftM2 (++)) $ map (pad . (++ ":")) ls
+
+        pad s = do
+            init <- arbitrary :: Gen Whitespace
+            end <- arbitrary :: Gen Whitespace
+            return $ show init ++ s ++ show end
+        padR r = pad $ '$' : show r
+
+        --register :: (Register -> a) -> String -> Gen a
+        register cons str = do
+            instr <- pad str
+            reg <- arbitrary :: Gen Register
+            regstr <- padR reg
+            return $ (cons reg, instr ++ regstr)
+        registern regn_1 c str = do   -- piggy backs on register(n - 1) to provide registern
+            (cons, instr) <- regn_1 c str
             comma <- pad ","
-            reg2 <- padR t
-            return $ ProgramLine op $ instr ++ reg1 ++ comma ++ reg2
-          register op x s = do
-            instr <- pad x
-            reg <- padR s
-            return $ ProgramLine op $ instr ++ reg
-          offset op x s t o = do
-            instr <- pad x
-            reg1 <- padR s
-            comma1 <- pad ","
-            reg2 <- padR t
-            comma2 <- pad ","
-            off <- pad $ show o
-            return $ ProgramLine op $ instr ++ reg1 ++ comma1 ++ reg2 ++ comma2 ++ off
-          memory op x t o s = do
-            instr <- pad x
-            reg1 <- padR t
-            comma1 <- pad ","
-            off <- pad $ show o
-            left <- pad "("
-            reg2 <- padR s
-            right <- pad ")"
-            return $ ProgramLine op $ instr ++ reg1 ++ comma1 ++ off ++ left ++ reg2 ++ right
+            reg <- arbitrary :: Gen Register
+            regstr <- padR reg
+            return $ (cons reg, instr ++ comma ++ regstr)
+        register2 = registern register
+        register3 = registern register2
+
+        branch :: (Register -> Register -> Offset -> Operation) -> String -> Gen (Operation, String)
+        branch c str = do
+            (cons, instr) <- register2 c str
+            comma <- pad ","
+            offset <- arbitrary :: Gen Offset
+            offstr <- pad $ show offset
+            return $ (cons offset, instr ++ comma ++ offstr)
+
+        branchLabel ::  (M.Map String Integer) ->
+                        (Register -> Register -> Label -> Integer -> Operation) ->
+                        String ->
+                        Gen (Operation, String)
+        branchLabel labels c str = do
+            (cons, instr) <- register2 c str
+            comma <- pad ","
+            index <- choose (0, M.size labels - 1)
+            let (label, _) = M.elemAt index labels
+            labelpadded <- pad label
+            -- note that we're setting the offset here as 0
+            -- this'll be fixed in the generateLabels step
+            return $ (cons label 0, instr ++ comma ++ labelpadded)
+
+        memory :: (Register -> Offset -> Register -> Operation) -> String -> Gen (Operation, String)
+        memory c str = do
+            (cons, instr) <- register c str
+            comma <- pad ","
+            offset <- arbitrary :: Gen Offset
+            offstr <- pad $ show offset
+            lparen <- pad "("
+            reg <- arbitrary :: Gen Register
+            regstr <- padR reg
+            rparen <- pad ")"
+            return $ (cons offset reg, instr ++ comma ++ offstr ++ lparen ++ regstr ++ rparen)
 
 -- default Generation for use in tests
-testgen = Generation empty 0
+emptyGeneration = Generation M.empty 0
 
-parseInstr :: ProgramLine -> Bool
-parseInstr p = case runParser parser testgen "" $ source p of
-  Right (gen, [ops])    -> ops == expected p
-  Left err              -> error $ show err
+parseProgram :: Program -> Bool
+parseProgram p = case runParser parser emptyGeneration "" $ source p of
+  Right (gen, ops)    -> ops == expected p && gen == generation p
+  Left err            -> error $ show err
 
-main = quickCheck $ label "Single Instruction" parseInstr
+main = quickCheckResult $ label "Complete Program" parseProgram
+
