@@ -72,20 +72,23 @@ instruction = do
             -- registers may only be specified in base 10
             reg <- lexeme (many1 digit) <?> "Register number"
             let reg' = toBase 10 reg
-            if  reg' > 31
+            if reg' > (fromIntegral (maxBound :: Register) :: Integer)
                 then fail $ "No such register: $" ++ reg
                 else return (fromIntegral reg' :: Register)
+
         register2 cons = do
             s <- register
             comma
             t <- register
             return $ cons s t
+
         register3 cons = do
             d <- register
             comma
             s <- register
             comma
             register >>= return . cons d s
+
         offsetOrLabel (offsetConstructor, labelConstructor) = do
             s <- register
             comma
@@ -108,9 +111,11 @@ instruction = do
             checkOffset i
             s <- parens register
             return $ cons t (fromIntegral i :: Offset) s
-        checkOffset i = if i > (fromIntegral (maxBound :: Offset) :: MipsWord)
-                            then fail "Offset too large to fit"
-                            else return ()
+
+        checkOffset i
+            | i > (fromIntegral (maxBound :: Offset) :: MipsWord) = fail "Offset too large to fit"
+            | otherwise = return ()
+
         operation = (lexeme $ many1 (letter <|> char '.')) <?> "Operation"
 
 number :: AsmParser MipsWord
@@ -123,9 +128,10 @@ number = lexeme  number' <?> "Number"
                 try $ string "0x"
                 many1 hexDigit >>= check . toBase 16
             <|> (many1 digit >>= check . toBase 10)
-        check n = if n > (fromIntegral (maxBound :: MipsWord) :: Integer)
-                    then fail "Number too large"
-                    else return (fromIntegral n :: MipsWord)
+
+        check n
+            | n > (fromIntegral (maxBound :: MipsWord) :: Integer) = fail "Number too large"
+            | otherwise = return (fromIntegral n :: MipsWord)
 
 toBase :: Integer -> String -> Integer
 toBase base = foldl' (\acc x -> acc * base + (fromIntegral $ digitToInt x :: Integer)) 0
