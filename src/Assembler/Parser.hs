@@ -42,28 +42,30 @@ instruction = do op <- instruction'
                  return op
               <?> "Instruction"
   where instruction' = do
-          op <- operation
-          updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
-          case op of
-            "add"   -> register3 Add
-            "beq"   -> offsetOrLabel (Beq, BeqL)
-            "bne"   -> offsetOrLabel (Bne, BneL)
-            "div"   -> register2 Div
-            "divu"  -> register2 Divu
-            "jalr"  -> register >>= return . Jalr
-            "jr"    -> register >>= return . Jr
-            "lis"   -> register >>= return . Lis
-            "lw"    -> loadOrStore Lw
-            "mfhi"  -> register >>= return . Mfhi
-            "mflo"  -> register >>= return . Mflo
-            "mult"  -> register2 Mult
-            "multu" -> register2 Multu
-            "slt"   -> register3 Slt
-            "sltu"  -> register3 Sltu
-            "sub"   -> register3 Sub
-            "sw"    -> loadOrStore Sw
-            ".word" -> number >>= return . Word
-            _       -> fail $ "Unknown instruction: " ++ op
+            op <- operation
+            instr <- case op of
+                "add"   -> register3 Add
+                "beq"   -> offsetOrLabel (Beq, BeqL)
+                "bne"   -> offsetOrLabel (Bne, BneL)
+                "div"   -> register2 Div
+                "divu"  -> register2 Divu
+                "jalr"  -> register >>= return . Jalr
+                "jr"    -> register >>= return . Jr
+                "lis"   -> register >>= return . Lis
+                "lw"    -> loadOrStore Lw
+                "mfhi"  -> register >>= return . Mfhi
+                "mflo"  -> register >>= return . Mflo
+                "mult"  -> register2 Mult
+                "multu" -> register2 Multu
+                "slt"   -> register3 Slt
+                "sltu"  -> register3 Sltu
+                "sub"   -> register3 Sub
+                "sw"    -> loadOrStore Sw
+                ".word" -> number >>= return . Word
+                _       -> fail $ "Unknown instruction: " ++ op
+            updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
+            return instr
+
         register = do
           char '$' <?> "Register"
           -- registers may only be specified in base 10
