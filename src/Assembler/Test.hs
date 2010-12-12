@@ -93,112 +93,112 @@ instance Arbitrary Program where
         -- Add label definitions to the nolabelsource and flatten it all as one string.
         (ops, src) <- foldr (generateLabels lines) (return ([], lastlabels)) $ zip [0..] nolabelsource
         return $ Program ops src gen
-    where
-        operations :: M.Map String Integer -> [Gen (Operation, String)]
-        operations labels = [ register3           Add     "add"
-                            , branch              Beq     "beq"
-                            , branchLabel labels  BeqL    "beq"
-                            , branch              Bne     "bne"
-                            , branchLabel labels  BneL    "bne"
-                            , register2           Div     "div"
-                            , register2           Divu    "divu"
-                            , register            Jalr    "jalr"
-                            , register            Jr      "jr"
-                            , register            Lis     "lis"
-                            , memory              Lw      "lw"
-                            , register            Mfhi    "mfhi"
-                            , register            Mflo    "mflo"
-                            , register2           Mult    "mult"
-                            , register2           Multu   "multu"
-                            , register3           Slt     "slt"
-                            , register3           Sltu    "sltu"
-                            , register3           Sub     "sub"
-                            , memory              Sw      "sw"
-                            , do -- Word
-                                instr <- pad ".word"
-                                word <- (arbitrary :: Gen MipsWord)
-                                return $ (Word word, instr ++ show word)
-                            ]
-        generateLabels ::   M.Map Integer [Label] ->
-                            (Integer, (Operation, String)) ->
-                            Gen ([Operation], String) ->
-                            Gen ([Operation], String)
-        generateLabels lines (offset, (op, instr)) gen = do
-            (ops, src) <- gen
-            let newop = case op of
-                    (BeqL s t l o) -> BeqL s t l offset
-                    (BneL s t l o) -> BneL s t l offset
-                    _ -> op
+      where operations :: M.Map String Integer -> [Gen (Operation, String)]
+            operations labels = [ register3           Add     "add"
+                                , branch              Beq     "beq"
+                                , branchLabel labels  BeqL    "beq"
+                                , branch              Bne     "bne"
+                                , branchLabel labels  BneL    "bne"
+                                , register2           Div     "div"
+                                , register2           Divu    "divu"
+                                , register            Jalr    "jalr"
+                                , register            Jr      "jr"
+                                , register            Lis     "lis"
+                                , memory              Lw      "lw"
+                                , register            Mfhi    "mfhi"
+                                , register            Mflo    "mflo"
+                                , register2           Mult    "mult"
+                                , register2           Multu   "multu"
+                                , register3           Slt     "slt"
+                                , register3           Sltu    "sltu"
+                                , register3           Sub     "sub"
+                                , memory              Sw      "sw"
+                                , do -- Word
+                                    instr <- pad ".word"
+                                    word <- (arbitrary :: Gen MipsWord)
+                                    return $ (Word word, instr ++ show word)
+                                ]
 
-            case M.lookup offset lines of
-                Nothing -> return (newop : ops, instr ++ src)
-                Just ls -> do
-                    labelsrc <- labelsForLine lines offset
-                    return $ (newop : ops, labelsrc ++ instr ++ src)
+            generateLabels ::   M.Map Integer [Label] ->
+                                (Integer, (Operation, String)) ->
+                                Gen ([Operation], String) ->
+                                Gen ([Operation], String)
+            generateLabels lines (offset, (op, instr)) gen = do
+                (ops, src) <- gen
+                let newop = case op of
+                        (BeqL s t l o) -> BeqL s t l offset
+                        (BneL s t l o) -> BneL s t l offset
+                        _ -> op
 
-        labelsForLine :: M.Map Integer [Label] -> Integer -> Gen String
-        labelsForLine lines offset = do
-            -- see if we have labels defined for this offset
-            case M.lookup offset lines of
-                Nothing -> pad $ "" -- put in some whitespace for kicks
-                -- add a colon to every label and pad with whitespace, then flatten the list
-                -- to a single string
-                Just ls -> foldr1 (liftM2 (++)) $ map (pad . (++ ":")) ls
+                case M.lookup offset lines of
+                    Nothing -> return (newop : ops, instr ++ src)
+                    Just ls -> do
+                        labelsrc <- labelsForLine lines offset
+                        return $ (newop : ops, labelsrc ++ instr ++ src)
 
-        pad s = do
-            init <- arbitrary :: Gen Whitespace
-            end <- arbitrary :: Gen Whitespace
-            return $ show init ++ s ++ show end
-        padR r = pad $ '$' : show r
+            labelsForLine :: M.Map Integer [Label] -> Integer -> Gen String
+            labelsForLine lines offset = do
+                -- see if we have labels defined for this offset
+                case M.lookup offset lines of
+                    Nothing -> pad $ "" -- put in some whitespace for kicks
+                    -- add a colon to every label and pad with whitespace, then flatten the list
+                    -- to a single string
+                    Just ls -> foldr1 (liftM2 (++)) $ map (pad . (++ ":")) ls
 
-        --register :: (Register -> a) -> String -> Gen a
-        register cons str = do
-            instr <- pad str
-            reg <- arbitrary :: Gen Register
-            regstr <- padR reg
-            return $ (cons reg, instr ++ regstr)
-        registern regn_1 c str = do   -- piggy backs on register(n - 1) to provide registern
-            (cons, instr) <- regn_1 c str
-            comma <- pad ","
-            reg <- arbitrary :: Gen Register
-            regstr <- padR reg
-            return $ (cons reg, instr ++ comma ++ regstr)
-        register2 = registern register
-        register3 = registern register2
+            pad s = do
+                init <- arbitrary :: Gen Whitespace
+                end <- arbitrary :: Gen Whitespace
+                return $ show init ++ s ++ show end
+            padR r = pad $ '$' : show r
 
-        branch :: (Register -> Register -> Offset -> Operation) -> String -> Gen (Operation, String)
-        branch c str = do
-            (cons, instr) <- register2 c str
-            comma <- pad ","
-            offset <- arbitrary :: Gen Offset
-            offstr <- pad $ show offset
-            return $ (cons offset, instr ++ comma ++ offstr)
+            --register :: (Register -> a) -> String -> Gen a
+            register cons str = do
+                instr <- pad str
+                reg <- arbitrary :: Gen Register
+                regstr <- padR reg
+                return $ (cons reg, instr ++ regstr)
+            registern regn_1 c str = do   -- piggy backs on register(n - 1) to provide registern
+                (cons, instr) <- regn_1 c str
+                comma <- pad ","
+                reg <- arbitrary :: Gen Register
+                regstr <- padR reg
+                return $ (cons reg, instr ++ comma ++ regstr)
+            register2 = registern register
+            register3 = registern register2
 
-        branchLabel ::  (M.Map String Integer) ->
-                        (Register -> Register -> Label -> Integer -> Operation) ->
-                        String ->
-                        Gen (Operation, String)
-        branchLabel labels c str = do
-            (cons, instr) <- register2 c str
-            comma <- pad ","
-            index <- choose (0, M.size labels - 1)
-            let (label, _) = M.elemAt index labels
-            labelpadded <- pad label
-            -- note that we're setting the offset here as 0
-            -- this'll be fixed in the generateLabels step
-            return $ (cons label 0, instr ++ comma ++ labelpadded)
+            branch :: (Register -> Register -> Offset -> Operation) -> String -> Gen (Operation, String)
+            branch c str = do
+                (cons, instr) <- register2 c str
+                comma <- pad ","
+                offset <- arbitrary :: Gen Offset
+                offstr <- pad $ show offset
+                return $ (cons offset, instr ++ comma ++ offstr)
 
-        memory :: (Register -> Offset -> Register -> Operation) -> String -> Gen (Operation, String)
-        memory c str = do
-            (cons, instr) <- register c str
-            comma <- pad ","
-            offset <- arbitrary :: Gen Offset
-            offstr <- pad $ show offset
-            lparen <- pad "("
-            reg <- arbitrary :: Gen Register
-            regstr <- padR reg
-            rparen <- pad ")"
-            return $ (cons offset reg, instr ++ comma ++ offstr ++ lparen ++ regstr ++ rparen)
+            branchLabel ::  (M.Map String Integer) ->
+                            (Register -> Register -> Label -> Integer -> Operation) ->
+                            String ->
+                            Gen (Operation, String)
+            branchLabel labels c str = do
+                (cons, instr) <- register2 c str
+                comma <- pad ","
+                index <- choose (0, M.size labels - 1)
+                let (label, _) = M.elemAt index labels
+                labelpadded <- pad label
+                -- note that we're setting the offset here as 0
+                -- this'll be fixed in the generateLabels step
+                return $ (cons label 0, instr ++ comma ++ labelpadded)
+
+            memory :: (Register -> Offset -> Register -> Operation) -> String -> Gen (Operation, String)
+            memory c str = do
+                (cons, instr) <- register c str
+                comma <- pad ","
+                offset <- arbitrary :: Gen Offset
+                offstr <- pad $ show offset
+                lparen <- pad "("
+                reg <- arbitrary :: Gen Register
+                regstr <- padR reg
+                rparen <- pad ")"
+                return $ (cons offset reg, instr ++ comma ++ offstr ++ lparen ++ regstr ++ rparen)
 
 -- default Generation for use in tests
 emptyGeneration = Generation M.empty 0
@@ -208,5 +208,5 @@ parseProgram p = case runParser parser emptyGeneration "" $ source p of
     Right (gen, ops)    -> ops == expected p && gen == generation p
     Left err            -> error $ show err
 
-main = quickCheckResult $ label "Complete Program" parseProgram
+main = quickCheck $ label "Complete Program" parseProgram
 
