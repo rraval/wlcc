@@ -1,6 +1,6 @@
 module Assembler.Parser(parser) where
 
-import Assembler.Data(Generation(..), Operation(..), MipsWord, Offset, Register)
+import Assembler.Data(Metadata(..), Operation(..), MipsWord, Offset, Register)
 import Control.Monad(when)
 import Data.Bits(complement)
 import Data.Char(digitToInt, isSpace)
@@ -8,16 +8,16 @@ import Data.List(foldl')
 import qualified Data.Map as M
 import Text.ParserCombinators.Parsec hiding (label)
 
-type AsmParser a = CharParser Generation a
+type AsmParser a = CharParser Metadata a
 
-parser :: AsmParser (Generation, [Operation])
+parser :: AsmParser (Metadata, [Operation])
 parser = do
     whiteSpace
     many label
     ops <- many line
-    gen <- getState
+    meta <- getState
     (eof <?> "End of file")
-    return (gen, ops)
+    return (meta, ops)
 
 line :: AsmParser Operation
 line = do
@@ -29,10 +29,10 @@ label :: AsmParser String
 label = lexeme label' <?> "Label"
   where label' = do
             id <- many1 letter
-            gen <- getState
-            case M.lookup id $ labelTable gen of
+            meta <- getState
+            case M.lookup id $ labelTable meta of
                 Just x -> error $ "Duplicate Label: '" ++ id ++ "'"
-                Nothing -> setState $ gen { labelTable = M.insert id (wordOffset gen) (labelTable gen) }
+                Nothing -> setState $ meta { labelTable = M.insert id (wordOffset meta) (labelTable meta) }
             char ':'
             return id
 
@@ -64,7 +64,7 @@ instruction = do
                 "sw"    -> loadOrStore Sw
                 ".word" -> number >>= return . Word
                 _       -> fail $ "Unknown instruction: " ++ op
-            updateState $ \gen -> gen { wordOffset = 1 + wordOffset gen }
+            updateState $ \meta -> meta { wordOffset = 1 + wordOffset meta }
             return instr
 
         register = do
@@ -96,8 +96,8 @@ instruction = do
             comma
             do
                     label <- try identifier
-                    gen <- getState
-                    let currentpos = wordOffset gen
+                    meta <- getState
+                    let currentpos = wordOffset meta
                     return $ labelConstructor s t label currentpos
                 <|> do
                     i <- number

@@ -99,13 +99,13 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                 deriving (Eq, Show)
 
 -- | Holds state data about the current instruction being assembled.
-data Generation = Generation {
-                    labelTable :: M.Map String Integer, -- ^ 'M.Map' holding all defined labels and
-                                                        --   their respective values.
-                    wordOffset :: Integer               -- ^ Current instruction offset (i.e. how
-                                                        --   many instructions have already been
-                                                        --   assembled).
-                  } deriving (Eq, Show)
+data Metadata = Metadata {
+    labelTable :: M.Map String Integer, -- ^ 'M.Map' holding all defined labels and
+                                        --   their respective values.
+    wordOffset :: Integer               -- ^ Current instruction offset (i.e. how
+                                        --   many instructions have already been
+                                        --   assembled).
+} deriving (Eq, Show)
 
 type MipsWord = Word32                                  -- ^ Type used for every assembled instruction.
 
