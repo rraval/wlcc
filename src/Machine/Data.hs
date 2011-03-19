@@ -77,43 +77,34 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                                                           --      Subtraction. @$d = $s - $t@.
                 | Sw    Tource      Offset  Source        -- ^ [@sw $t, i($s)@]
                                                           --      Store Word. @MEM[$s + i] = $t@
-                | Word  MipsWord                          -- ^ [@.word i@]
+                | Literal  Word32                         -- ^ [@.word i@]
                                                           --      Meta operation. The 32 bit number
                                                           --      /i/ will appear literally in the
                                                           --      assembler output.
                 deriving (Eq, Show)
 
--- | Type used for every assembled instruction.
-type MipsWord = Word32
-
--- | Display a bunch of 'MipsWord's as a binary sequence of bytes.
-binaryShow :: [MipsWord] -> String
-binaryShow = foldr (++) "" . map bShow
-  where bShow mw = map (chr . byte mw) [24, 16, 8, 0]
-        byte w o = fromIntegral $ (w .&. (0xff `shiftL` o)) `shiftR` o :: Int
-
 -- | Type used to specify registers.
-newtype Register = Register Word8
-                 deriving (Bits, Enum, Eq, Integral, Num, Ord, Real)
+type Register = Word8
 
-instance Bounded Register where
-  minBound = 0
-  maxBound = 31
+-- | Provides range checking for the creation of 'Register'. This is the /only/ way to construct the
+--   'Register' type.
+makeRegister r
+    | r < (minBound :: Register) || r > (maxBound :: Register) = error $ "No such register: $" ++ show r
+    | otherwise = Register r
 
-instance Show Register where
-  show (Register r) = show r
+-- | Constants used in immediate instructions (see 'genImmediate').
+--   Seen as @i@ in documentation. Uses all 16 bits.
+type Offset = Word16
 
-type Opcode = Word8         -- ^ Specifies the top 6 bits of an instruction (the /opcode/ field
-                            --   of a MIPS instruction.
-type Funct = Word8          -- ^ Specifies the lower 6 bits of an instruction (the /funct/ field
-                            --   of a MIPS R-format instruction.
+-- | Provides range checking for the creation of 'Offset'. This is the /only/ way to construct the
+--   'Offset' type.
+makeOffset o
+    | o < (minBound :: Offset) || r > (maxBound :: Register) = error $ "Offset out of range: " ++ show o
+    | otherwise = Offset o
+
 type Destination = Register -- ^ Register specifying destination. Seen as @$d@ in documentation.
                             --   Only uses 5 bits.
 type Source = Register      -- ^ Register specifying first source. Seen as @$s@ in documentation.
                             --   Only uses 5 bits.
 type Tource = Register      -- ^ Register specifying second source. Seen as @$t@ in documentation.
                             --   Only uses 5 bits.
-type Offset = Word16        -- ^ Constants used in immediate instructions (see 'genImmediate').
-                            --   Seen as @i@ in documentation. Uses all 16 bits.
-type Label = String         -- ^ Refers to a named location in the file. See as @/label/@ in
-                            --   documentation.
