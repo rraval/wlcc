@@ -1,6 +1,7 @@
 module Assembler.Parser(parser) where
 
-import Assembler.Data(Metadata(..), Operation(..), MipsWord, Offset, Register)
+import Assembler.Data(Metadata(..))
+import Machine.Data(Operation(..), MipsWord, Offset, Register)
 import Control.Monad(when)
 import Data.Bits(complement)
 import Data.Char(digitToInt, isSpace)
