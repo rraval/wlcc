@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Holds all the data types used by the WL MIPS machine.
 module Machine.Data (
     -- * Binary File Format
