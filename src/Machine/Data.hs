@@ -17,11 +17,12 @@ module Machine.Data (
     Source,
     Tource) where
 
-import Data.Binary(Binary(..))
+import Data.Binary(Binary(..), Get, put)
 import Data.Bits(Bits, (.&.), (.|.), shiftL, shiftR)
 import Data.Char(chr)
 import qualified Data.Map as M
 import Data.Word(Word8, Word16, Word32)
+import Text.Printf(printf)
 
 -- | Data type that represents all possible instructions supported by the machine.
 --
@@ -229,7 +230,37 @@ instance Binary Operation where
                 funct' = fromIntegral funct :: Word32
             put $ s' .|. t' .|. d' .|. funct'
 
-    get = undefined
+    get = do
+        w <- get :: Get Word32
+        return $ case w .&. 0xfc000000 of
+            0x8c000000  -> applyT w $ applyI w $ applyS w Lw
+            0xac000000  -> applyT w $ applyI w $ applyS w Sw
+            0x10000000  -> applyI w $ applyT w $ applyS w Beq
+            0x11000000  -> applyI w $ applyT w $ applyS w Bne
+            0           -> case w .&. 0x3f of   -- R-format
+                0x20    -> applyT w $ applyS w $ applyD w Add
+                0x22    -> applyT w $ applyS w $ applyD w Sub
+                0x18    -> applyT w $ applyS w Mult
+                0x19    -> applyT w $ applyS w Multu
+                0x1a    -> applyT w $ applyS w Div
+                0x1b    -> applyT w $ applyS w Divu
+                0x10    -> applyD w Mfhi
+                0x12    -> applyD w Mflo
+                0x14    -> applyD w Lis
+                0x2a    -> applyT w $ applyS w $ applyD w Slt
+                0x2b    -> applyT w $ applyS w $ applyD w Sltu
+                0x08    -> applyS w Jr
+                0x09    -> applyS w Jalr
+                _       -> error $ printf "Bad R-format instruction: %08x" w
+            _           -> error $ printf "Bad instruction: %08x" w
+      where
+        -- these work for both I-format and R-format
+        applyS w cns = cns $ makeRegister $ (w .&. 0x03e00000) `shiftR` 21
+        applyT w cns = cns $ makeRegister $ (w .&. 0x001f0000) `shiftR` 16
+        -- R-format only
+        applyD w cns = cns $ makeRegister $ (w .&. 0x0000f800) `shiftR` 11
+        -- I-format only
+        applyI w cns = cns $ makeOffset $ w .&. 0x0000ffff
 
 type Register = Word8
 
