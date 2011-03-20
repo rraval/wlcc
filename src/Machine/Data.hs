@@ -18,7 +18,7 @@ module Machine.Data (
     Tource) where
 
 import Data.Binary(Binary(..))
-import Data.Bits(Bits, (.&.), shiftL, shiftR)
+import Data.Bits(Bits, (.&.), (.|.), shiftL, shiftR)
 import Data.Char(chr)
 import qualified Data.Map as M
 import Data.Word(Word8, Word16, Word32)
@@ -195,7 +195,40 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
 --
 --     * @00 1001@ is 'Jalr'
 instance Binary Operation where
-    put = undefined
+    put opn = case opn of
+        (Add d s t)     -> putR d s t 0x20
+        (Beq s t i)     -> putI 0x4 s t i
+        (Bne s t i)     -> putI 0x5 s t i
+        (Div s t)       -> putR 0 s t 0x1a
+        (Divu s t)      -> putR 0 s t 0x1b
+        (Jalr s)        -> putR 0 s 0 0x9
+        (Jr s)          -> putR 0 s 0 0x8
+        (Lis d)         -> putR d 0 0 0x14
+        (Lw t i s)      -> putI 0x23 s t i
+        (Mfhi d)        -> putR d 0 0 0x10
+        (Mflo d)        -> putR d 0 0 0x12
+        (Mult s t)      -> putR 0 s t 0x18
+        (Multu s t)     -> putR 0 s t 0x19
+        (Slt d s t)     -> putR d s t 0x2a
+        (Sltu d s t)    -> putR d s t 0x2b
+        (Sub d s t)     -> putR d s t 0x22
+        (Sw t i s)      -> putI 0x2b s t i
+        (Literal w)     -> put w
+      where
+        putI op s t i = do
+            let op' = (fromIntegral op :: Word32) `shiftL` 26
+                s' = (fromIntegral s :: Word32) `shiftL` 21
+                t' = (fromIntegral s :: Word32) `shiftL` 16
+                i' = fromIntegral i :: Word32
+            put $ op' .|. s' .|. t' .|. i'
+
+        putR d s t funct = do
+            let d' = (fromIntegral d :: Word32) `shiftL` 21
+                s' = (fromIntegral s :: Word32) `shiftL` 16
+                t' = (fromIntegral t :: Word32) `shiftL` 11
+                funct' = fromIntegral funct :: Word32
+            put $ s' .|. t' .|. d' .|. funct'
+
     get = undefined
 
 type Register = Word8
