@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- | Holds all the data types used by the WL MIPS machine.
 module Machine.Data (
     -- * Binary File Format
@@ -11,17 +12,19 @@ module Machine.Data (
     Operation(..),
     -- * Restriced Type Constructors
     makeOffset,
+    Offset,
     makeRegister,
+    Register,
     -- * Register Types
     Destination,
     Source,
     Tource) where
 
+import Control.Monad(liftM, liftM2, liftM3)
 import Data.Binary(Binary(..), Get, put)
-import Data.Bits(Bits, (.&.), (.|.), shiftL, shiftR)
-import Data.Char(chr)
-import qualified Data.Map as M
+import Data.Bits((.&.), (.|.), shiftL, shiftR)
 import Data.Word(Word8, Word16, Word32)
+import Test.QuickCheck(Arbitrary(..), arbitraryBoundedIntegral, oneof)
 import Text.Printf(printf)
 
 -- | Data type that represents all possible instructions supported by the machine.
@@ -119,6 +122,28 @@ data Operation  = Add   Destination Source  Tource        -- ^ [@add $d, $s, $t@
                                                           --      /i/ will appear literally in the
                                                           --      assembler output.
                 deriving (Eq, Show)
+
+instance Arbitrary Operation where
+    arbitrary = oneof
+        [ liftM3 Add arbitrary arbitrary arbitrary
+        , liftM3 Beq arbitrary arbitrary arbitrary
+        , liftM3 Bne arbitrary arbitrary arbitrary
+        , liftM2 Div arbitrary arbitrary
+        , liftM2 Divu arbitrary arbitrary
+        , liftM Jalr arbitrary
+        , liftM Jr arbitrary
+        , liftM Lis arbitrary
+        , liftM3 Lw arbitrary arbitrary arbitrary
+        , liftM Mfhi arbitrary
+        , liftM Mflo arbitrary
+        , liftM2 Mult arbitrary arbitrary
+        , liftM2 Multu arbitrary arbitrary
+        , liftM3 Slt arbitrary arbitrary arbitrary
+        , liftM3 Sltu arbitrary arbitrary arbitrary
+        , liftM3 Sub arbitrary arbitrary arbitrary
+        , liftM3 Sw arbitrary arbitrary arbitrary
+        , liftM Literal arbitrary
+        ]
 
 -- $binary-intro
 -- Serialization and deserialization routines for 'Operation' are provided by an instance of the
@@ -219,24 +244,24 @@ instance Binary Operation where
         putI op s t i = do
             let op' = (fromIntegral op :: Word32) `shiftL` 26
                 s' = (fromIntegral s :: Word32) `shiftL` 21
-                t' = (fromIntegral s :: Word32) `shiftL` 16
+                t' = (fromIntegral t :: Word32) `shiftL` 16
                 i' = fromIntegral i :: Word32
             put $ op' .|. s' .|. t' .|. i'
 
         putR d s t funct = do
-            let d' = (fromIntegral d :: Word32) `shiftL` 21
-                s' = (fromIntegral s :: Word32) `shiftL` 16
-                t' = (fromIntegral t :: Word32) `shiftL` 11
+            let s' = (fromIntegral s :: Word32) `shiftL` 21
+                t' = (fromIntegral t :: Word32) `shiftL` 16
+                d' = (fromIntegral d :: Word32) `shiftL` 11
                 funct' = fromIntegral funct :: Word32
             put $ s' .|. t' .|. d' .|. funct'
 
     get = do
         w <- get :: Get Word32
         return $ case w .&. 0xfc000000 of
-            0x8c000000  -> applyT w $ applyI w $ applyS w Lw
-            0xac000000  -> applyT w $ applyI w $ applyS w Sw
+            0x8c000000  -> applyS w $ applyI w $ applyT w Lw
+            0xac000000  -> applyS w $ applyI w $ applyT w Sw
             0x10000000  -> applyI w $ applyT w $ applyS w Beq
-            0x11000000  -> applyI w $ applyT w $ applyS w Bne
+            0x14000000  -> applyI w $ applyT w $ applyS w Bne
             0           -> case w .&. 0x3f of   -- R-format
                 0x20    -> applyT w $ applyS w $ applyD w Add
                 0x22    -> applyT w $ applyS w $ applyD w Sub
@@ -262,13 +287,25 @@ instance Binary Operation where
         -- I-format only
         applyI w cns = cns $ makeOffset $ w .&. 0x0000ffff
 
-type Register = Word8
+newtype Register = Register Word8
+    deriving (Eq, Ord, Num, Enum, Real, Integral)
+
+instance Bounded Register where
+    minBound = 0
+    maxBound = 31
+
+instance Show Register where
+    show (Register r) = show r
+
+instance Arbitrary Register where
+    arbitrary = arbitraryBoundedIntegral
 
 -- | Provides range checking for the creation of 'Register'. This is the /only/ way to construct the
 --   'Register' type.
 makeRegister :: (Integral a) => a -> Register
 makeRegister r
-    | r < 0 || r > 31 = error $ "No such register: $" ++ show r
+    | r < fromIntegral (minBound :: Register)
+        || r > fromIntegral (maxBound :: Register) = error $ "No such register: $" ++ show r
     | otherwise = fromIntegral r
 
 type Offset = Word16
