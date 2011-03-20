@@ -1,4 +1,3 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 module Machine.Test() where
 
 import Data.Binary(decode, encode)
